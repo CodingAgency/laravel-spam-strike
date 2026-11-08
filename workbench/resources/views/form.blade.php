@@ -24,7 +24,25 @@
     </form>
     <p id="ajax-result"></p>
 
+    <h2>Form that handles its own submit (manual)</h2>
+    <form id="manual" method="POST" action="/contact" data-spam-strike="manual">
+        @csrf
+        <x-spam-strike::fields />
+        <input name="name" placeholder="Name">
+        <button id="manual-submit">Send</button>
+    </form>
+    <p id="manual-result"></p>
+
     <script>
+        document.getElementById('manual').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            window.manualEvents = (window.manualEvents || 0) + 1;
+            const form = event.target;
+            await window.SpamStrike.ready(form);
+            const answer = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+            document.getElementById('manual-result').textContent = answer.status + ' ' + await answer.text();
+        });
+
         document.getElementById('ajax').addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.target;

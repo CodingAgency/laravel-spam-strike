@@ -47,7 +47,8 @@
     const settled = new WeakSet();
     document.addEventListener('submit', (event) => {
         const form = protectedForm(event.target);
-        if (!form || settled.has(form)) return;
+        // data-spam-strike="manual": the page awaits SpamStrike.ready(form) in its own handler.
+        if (!form || settled.has(form) || form.dataset.spamStrike === 'manual') return;
 
         event.preventDefault();
         event.stopImmediatePropagation();

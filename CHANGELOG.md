@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 — 2026-11-08
+
+- `data-spam-strike="manual"`: the script fetches the token but leaves the submit event to the page, which awaits `SpamStrike.ready(form)` itself. For pages that answer the submit themselves, such as an AI agent's (WebMCP).
+
 ## 0.1.0 — 2026-11-08
 
 First release.

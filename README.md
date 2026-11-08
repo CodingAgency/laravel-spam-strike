@@ -75,6 +75,8 @@ await window.SpamStrike.ready(form);
 const response = await fetch(form.action, { method: 'POST', body: new FormData(form) });
 ```
 
+Does your page handle the submit itself, for example to return an answer to an AI agent (WebMCP)? Set `data-spam-strike="manual"`. The script still fetches the token, but leaves the submit event alone, and your handler awaits `SpamStrike.ready(form)` as above.
+
 A form that is sent too fast, for example by an AI agent filling it in for a real person, does not fail. The script waits the remaining seconds and then sends it.
 
 ### The sender's details in your own mail
