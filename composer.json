@@ -1,0 +1,72 @@
+{
+    "name": "codingagency/laravel-spam-strike",
+    "description": "Stop contact form spam in Laravel without a CAPTCHA, then hit back: a JavaScript token, a honeypot and a timing check, plus automatic abuse reports to the spammer's registrar and hosting provider.",
+    "keywords": [
+        "laravel",
+        "spam",
+        "contact form",
+        "honeypot",
+        "abuse report",
+        "rdap",
+        "captcha alternative"
+    ],
+    "homepage": "https://github.com/CodingAgency/laravel-spam-strike",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Coding Agency",
+            "email": "contact@coding.agency",
+            "homepage": "https://coding.agency"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/CodingAgency/laravel-spam-strike/issues",
+        "source": "https://github.com/CodingAgency/laravel-spam-strike"
+    },
+    "require": {
+        "php": "^8.3",
+        "illuminate/cache": "^12.0 || ^13.0",
+        "illuminate/contracts": "^12.0 || ^13.0",
+        "illuminate/encryption": "^12.0 || ^13.0",
+        "illuminate/http": "^12.0 || ^13.0",
+        "illuminate/mail": "^12.0 || ^13.0",
+        "illuminate/queue": "^12.0 || ^13.0",
+        "illuminate/routing": "^12.0 || ^13.0",
+        "illuminate/support": "^12.0 || ^13.0",
+        "illuminate/view": "^12.0 || ^13.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.30",
+        "orchestra/testbench": "^10.0 || ^11.0",
+        "pestphp/pest": "^4.0 || ^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CodingAgency\\SpamStrike\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CodingAgency\\SpamStrike\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "CodingAgency\\SpamStrike\\SpamStrikeServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

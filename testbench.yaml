@@ -1,0 +1,17 @@
+providers:
+  - CodingAgency\SpamStrike\SpamStrikeServiceProvider
+
+env:
+  APP_KEY: base64:a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s=
+  APP_URL: http://127.0.0.1:8123
+  SESSION_DRIVER: file
+  CACHE_STORE: file
+  QUEUE_CONNECTION: sync
+  MAIL_MAILER: log
+  SPAM_STRIKE_REPORTS: false
+
+workbench:
+  start: /form
+  discovers:
+    web: true
+    views: true

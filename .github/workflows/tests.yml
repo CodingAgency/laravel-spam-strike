@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { php: '8.3', laravel: '12.*' }
+          - { php: '8.4', laravel: '12.*' }
+          - { php: '8.4', laravel: '13.*' }
+    name: PHP ${{ matrix.php }}, Laravel ${{ matrix.laravel }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring
+          coverage: none
+      - run: composer update --with "illuminate/support:${{ matrix.laravel }}" --no-interaction --prefer-dist --no-progress
+      - run: vendor/bin/pest
+
+  style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: vendor/bin/pint --test
+
+  # The next Laravel major, as it is being built (laravel/framework dev-master and
+  # the Testbench made for it). Allowed to fail: it tells ahead of a release what a
+  # version bump will have to fix, and never blocks a merge.
+  next-laravel:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Next Laravel (in development)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring
+          coverage: none
+      - name: Point composer.json at the development branches
+        run: |
+          for package in $(jq -r '.require | keys[] | select(startswith("illuminate/"))' composer.json); do
+            composer require "$package:dev-master as 14.0.0" --no-update
+          done
+          composer require --dev "orchestra/testbench:12.x-dev" --no-update
+      - run: composer update --no-interaction --prefer-dist --no-progress --with-all-dependencies
+      - run: vendor/bin/pest
