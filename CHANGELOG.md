@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-11-09
+
+- **Never report yourself.** A form with an address at the site's own domain (`app.url`, the from address, or `own_domains`) is no longer reported anywhere. Until now only the report to the registrar was skipped, and the report to the network still went out: testing your own form without JavaScript reported your own connection to your provider.
+- An address that sent a valid form in the last 30 days is never reported to its network: that is a person, perhaps a customer behind the same office connection.
+- `ignore_ips` (`SPAM_STRIKE_IGNORE_IPS`): addresses and ranges whose network is never reported.
+
 ## 0.3.0 — 2026-11-08
 
 - `silent.reasons`: blocked submissions for the listed reasons get the answer of a form that went through (JSON with status 200, or a flashed success message), so the bot does not learn it was caught. They are still refused, and still reported where they would be.

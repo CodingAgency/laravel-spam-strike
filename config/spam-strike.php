@@ -155,6 +155,17 @@ return [
         // 'registrar-abuse@cloudflare.com' => 'https://www.cloudflare.com/trust-hub/reporting-abuse/'.
         'web_form_only' => [],
 
+        // Domains that are you. A form with an address there (you testing your own
+        // form, say) is never reported anywhere: not to the registrar and not to
+        // the network it came from. The domain of app.url and of the from address
+        // count already.
+        'own_domains' => [],
+
+        // Addresses and ranges whose network is never reported: your office, your
+        // home connection, a monitoring service. An address that sent a valid form
+        // in the last 30 days is never reported either.
+        'ignore_ips' => array_filter(explode(',', (string) env('SPAM_STRIKE_IGNORE_IPS', ''))),
+
         // Addresses that only describe your own network, never the sender's.
         'hidden_networks' => ['100.64.0.0/10'],
     ],

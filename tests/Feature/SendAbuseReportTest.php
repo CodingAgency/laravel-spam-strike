@@ -231,3 +231,47 @@ describe('the network the bot runs at', function () {
         expect(Mail::sent(AbuseReport::class, fn (AbuseReport $mail) => $mail->ip !== null))->toHaveCount(0);
     });
 });
+
+describe('never yourself', function () {
+    beforeEach(fn () => config(['spam-strike.reports.network' => true]));
+
+    it('reports nothing at all, not even the network, for the site\'s own domain', function (string $domain) {
+        Http::fake(['rdap.org/*' => Http::response(rdap('abuse@isp.example'))]);
+
+        sendReport($domain);
+
+        Mail::assertNothingSent();
+        Http::assertNothingSent();
+    })->with(['shop.example', 'mail.shop.example']);
+
+    it('counts own_domains as the site\'s own', function () {
+        config(['spam-strike.reports.own_domains' => ['owner-home.example']]);
+        Http::fake(['rdap.org/*' => Http::response(rdap('abuse@isp.example'))]);
+
+        sendReport('owner-home.example');
+
+        Mail::assertNothingSent();
+    });
+
+    it('never reports the network of an address on the ignore list', function () {
+        config(['spam-strike.reports.ignore_ips' => ['203.0.113.0/24']]);
+        Http::fake(['rdap.org/domain/*' => Http::response([], 404), 'rdap.org/ip/*' => Http::response(rdap('abuse@isp.example'))]);
+
+        sendReport();
+
+        expect(Mail::sent(AbuseReport::class, fn (AbuseReport $mail) => $mail->ip !== null))->toHaveCount(0);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'rdap.org/ip/'));
+    });
+
+    it('never reports the network of an address that sent a valid form before', function () {
+        Http::fake(['rdap.org/domain/*' => Http::response([], 404), 'rdap.org/ip/*' => Http::response(rdap('abuse@isp.example'))]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.7'])
+            ->postJson('/contact', ['_strike_token' => $this->token(), 'email' => 'jan@leadgen.example'])
+            ->assertOk();
+
+        sendReport();
+
+        expect(Mail::sent(AbuseReport::class, fn (AbuseReport $mail) => $mail->ip !== null))->toHaveCount(0);
+    });
+});

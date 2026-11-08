@@ -10,6 +10,7 @@ use CodingAgency\SpamStrike\Jobs\SendAbuseReport;
 use CodingAgency\SpamStrike\Support\FormToken;
 use CodingAgency\SpamStrike\Support\RequestDetails;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
@@ -38,6 +39,14 @@ final class ProtectAgainstSpam
 
     public const EXPIRED = 'expired token';
 
+    /** How long an address that sent a valid form is never reported to its network. */
+    public const TRUSTED_DAYS = 30;
+
+    public static function trustedKey(string $ip): string
+    {
+        return 'spam-strike:trusted-ip:'.$ip;
+    }
+
     /**
      * @param  Closure(Request): Response  $next
      */
@@ -65,6 +74,9 @@ final class ProtectAgainstSpam
         if ($age < (int) config('spam-strike.minimum_seconds')) {
             return $this->block($request, self::TOO_FAST, report: false);
         }
+
+        // A person sent this: their address is never reported to its network.
+        Cache::put(self::trustedKey((string) $request->ip()), true, now()->addDays(self::TRUSTED_DAYS));
 
         $request->attributes->set('spam-strike.seconds', $age);
         $request->attributes->set('spam-strike.details', RequestDetails::from($request));

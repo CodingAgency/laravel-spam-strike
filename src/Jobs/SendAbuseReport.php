@@ -6,6 +6,7 @@ namespace CodingAgency\SpamStrike\Jobs;
 
 use CodingAgency\SpamStrike\Events\AbuseReportSent;
 use CodingAgency\SpamStrike\Events\AbuseReportSkipped;
+use CodingAgency\SpamStrike\Http\Middleware\ProtectAgainstSpam;
 use CodingAgency\SpamStrike\Mail\AbuseReport;
 use CodingAgency\SpamStrike\Support\AbuseContact;
 use CodingAgency\SpamStrike\Support\Dns;
@@ -55,13 +56,21 @@ final class SendAbuseReport implements ShouldQueue
         $details = $this->publicDetails();
         $domainRecipient = null;
 
+        // Your own domain in the form is you, or someone testing for you: nothing
+        // is reported anywhere, not to its registrar and not to its network.
+        if ($this->isOwnDomain($domain)) {
+            $this->skip($domain, 'own domain, nothing reported');
+
+            return;
+        }
+
         if ($this->isExempt($domain)) {
             $this->skip($domain, 'exempt domain');
         } elseif ($this->claim("domain:{$domain}", $domain)) {
             $domainRecipient = $this->reportDomain($domain, $details, $contacts, $dns);
         }
 
-        if (config('spam-strike.reports.network') && isset($details['IP'])) {
+        if (config('spam-strike.reports.network') && isset($details['IP']) && $this->mayReportNetwork($details['IP'])) {
             $this->reportNetwork($details['IP'], $domain, $details, $contacts, $domainRecipient);
         }
     }
@@ -208,14 +217,50 @@ final class SendAbuseReport implements ShouldQueue
         return array_values(array_filter((array) config('spam-strike.reports.cc')));
     }
 
-    private function isExempt(string $domain): bool
+    private function isOwnDomain(string $domain): bool
     {
         $own = array_filter([
             parse_url((string) config('app.url'), PHP_URL_HOST),
             Str::after((string) config('spam-strike.reports.from.address'), '@'),
+            ...(array) config('spam-strike.reports.own_domains'),
         ]);
 
-        foreach ([...$own, ...(array) config('spam-strike.reports.exempt_domains')] as $exempt) {
+        foreach ($own as $exempt) {
+            $exempt = Str::lower((string) $exempt);
+
+            if ($domain === $exempt || str_ends_with($domain, '.'.$exempt)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Never the network of an address on the ignore list, or of one that sent a
+     * valid form in the last weeks: that is a person, maybe you, maybe a customer
+     * behind the same office connection.
+     */
+    private function mayReportNetwork(string $ip): bool
+    {
+        if (IpUtils::checkIp($ip, (array) config('spam-strike.reports.ignore_ips'))) {
+            $this->skip($ip, 'address on the ignore list');
+
+            return false;
+        }
+
+        if (Cache::has(ProtectAgainstSpam::trustedKey($ip))) {
+            $this->skip($ip, 'address sent a valid form before');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isExempt(string $domain): bool
+    {
+        foreach ((array) config('spam-strike.reports.exempt_domains') as $exempt) {
             if ($domain === $exempt || str_ends_with($domain, '.'.$exempt)) {
                 return true;
             }

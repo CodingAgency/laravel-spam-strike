@@ -108,7 +108,8 @@ Without JavaScript, the form is hidden and a short notice is shown in the visito
 Spam Strike hits back hard, and it plays fair while doing it. The address in a web form is whatever the sender typed, and spammers sometimes type someone else's. So:
 
 - each domain and each IP address is reported **once a day**, with **at most 25 complaints a day** in all, so nobody can use your form to flood other people;
-- free mailbox providers (Gmail, Outlook and the like) and your own domain are never reported to a registrar;
+- **never you:** a form with an address at your own domain (you testing your own form) is never reported anywhere, not even to its network. Neither is an address that sent a valid form in the last 30 days, or one you list under `ignore_ips` (your office, your home connection, a monitoring service);
+- free mailbox providers (Gmail, Outlook and the like) are never reported to a registrar;
 - addresses of your own network (private, reserved and `100.64.0.0/10`) are never put in a complaint;
 - complaints go to abuse desks, whose job it is to look into them;
 - every complaint, and every one that was skipped, is logged and dispatched as an event: `SpamBlocked`, `AbuseReportSent` and `AbuseReportSkipped`.
