@@ -51,6 +51,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Fooling the bot
+    |--------------------------------------------------------------------------
+    |
+    | For the reasons listed here a blocked submission gets the answer of a
+    | form that went through, so the bot does not learn it was caught and does
+    | not try harder. It is still refused, and still reported where it would be.
+    | The reasons: 'no javascript', 'honeypot', 'too fast', 'expired token'.
+    |
+    | Leave 'no javascript' and 'expired token' out unless you mean it: a real
+    | person with JavaScript blocked, or a tab left open for a day, would then
+    | think their message was sent.
+    |
+    */
+
+    'silent' => [
+        'reasons' => [],
+
+        // What a request that expects JSON gets back, with status 200.
+        'json' => ['success' => true],
+
+        // What a plain form gets flashed into the session as it is sent back.
+        'flash' => ['success' => 'Thank you for your message.'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | The notice without JavaScript
     |--------------------------------------------------------------------------
     |

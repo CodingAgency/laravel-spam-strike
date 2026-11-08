@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 — 2026-11-08
+
+- `silent.reasons`: blocked submissions for the listed reasons get the answer of a form that went through (JSON with status 200, or a flashed success message), so the bot does not learn it was caught. They are still refused, and still reported where they would be.
+
 ## 0.2.0 — 2026-11-08
 
 - `data-spam-strike="manual"`: the script fetches the token but leaves the submit event to the page, which awaits `SpamStrike.ready(form)` itself. For pages that answer the submit themselves, such as an AI agent's (WebMCP).

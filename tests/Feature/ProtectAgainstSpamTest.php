@@ -81,3 +81,34 @@ it('queues nothing without a valid address, or with reports switched off', funct
 
     Queue::assertNothingPushed();
 });
+
+describe('fooling the bot', function () use ($spam) {
+    beforeEach(fn () => config([
+        'spam-strike.silent.reasons' => ['honeypot', 'too fast'],
+        'spam-strike.silent.json' => ['success' => true, 'message' => 'Sent!'],
+        'spam-strike.silent.flash' => ['success' => 'Thanks!'],
+    ]));
+
+    it('answers a listed reason like a form that went through', function () use ($spam) {
+        $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))
+            ->assertOk()
+            ->assertExactJson(['success' => true, 'message' => 'Sent!']);
+    });
+
+    it('flashes the success message to a plain form', function () use ($spam) {
+        $this->from('/form')->post('/contact', $spam(['website_url' => 'https://x.example', '_strike_token' => $this->token()]))
+            ->assertRedirect('/form')
+            ->assertSessionHas('success', 'Thanks!')
+            ->assertSessionHasNoErrors();
+    });
+
+    it('still reports what it fools', function () use ($spam) {
+        $this->postJson('/contact', $spam(['website_url' => 'https://x.example']))->assertOk();
+
+        Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->reason === 'honeypot');
+    });
+
+    it('keeps refusing the reasons that are not listed', function () use ($spam) {
+        $this->postJson('/contact', $spam())->assertUnprocessable();
+    });
+});

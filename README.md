@@ -99,6 +99,8 @@ $seconds = $request->attributes->get('spam-strike.seconds'); // how long the for
 | Token older than `token_lifetime` (someone left the tab open) | 422 | no |
 | A real person | passes ✅ | no |
 
+Would you rather the bot never found out? List reasons under `silent.reasons` (say `honeypot` and `too fast`) and those get the answer of a form that went through: your JSON, or a flashed success message. The submission is still refused, and still reported where it would be. Let it think it won.
+
 Without JavaScript, the form is hidden and a short notice is shown in the visitor's browser language, with your e-mail address. Languages you did not configure get nothing at all. If you only serve Dutch and English, a bot claiming to be from somewhere else does not need help.
 
 ## Playing fair

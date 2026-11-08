@@ -22,6 +22,9 @@ use Symfony\Component\HttpFoundation\Response;
  * - Sent within the minimum seconds of the token: refused.
  * - A token older than the lifetime: refused, not reported.
  *
+ * Reasons listed under `silent.reasons` get the answer of a form that went
+ * through instead, so the bot does not learn it was caught.
+ *
  * What passes gets the seconds the form was in use and the request details as
  * request attributes `spam-strike.seconds` and `spam-strike.details`.
  */
@@ -85,6 +88,10 @@ final class ProtectAgainstSpam
             $this->queueReport($request, $reason);
         }
 
+        if (in_array($reason, (array) config('spam-strike.silent.reasons'), true)) {
+            return $this->pretendSuccess($request);
+        }
+
         $message = (string) config('spam-strike.response.message');
         $status = (int) config('spam-strike.response.status');
 
@@ -93,6 +100,24 @@ final class ProtectAgainstSpam
         }
 
         return back(303)->withErrors(['form' => $message])->withInput($request->except((string) config('spam-strike.fields.token')));
+    }
+
+    /**
+     * The answer of a form that went through, for a bot that should not learn it was caught.
+     */
+    private function pretendSuccess(Request $request): Response
+    {
+        if ($request->expectsJson()) {
+            return response()->json((array) config('spam-strike.silent.json'));
+        }
+
+        $response = back(303);
+
+        foreach ((array) config('spam-strike.silent.flash') as $key => $value) {
+            $response->with((string) $key, $value);
+        }
+
+        return $response;
     }
 
     /**
