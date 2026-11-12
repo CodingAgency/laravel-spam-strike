@@ -155,6 +155,14 @@ return [
         // 'registrar-abuse@cloudflare.com' => 'https://www.cloudflare.com/trust-hub/reporting-abuse/'.
         'web_form_only' => [],
 
+        // The abuse desk of whoever runs a domain's nameservers, for when RDAP gives
+        // no abuse contact: the domain sits behind that party, and abuse@domain
+        // would only reach the spammer. Keyed by nameserver suffix; the first
+        // address gets the report, the others are in cc.
+        'nameserver_fallbacks' => [
+            'ns.cloudflare.com' => ['abuse@cloudflare.com', 'abusereply@cloudflare.com'],
+        ],
+
         // Domains that are you. A form with an address there (you testing your own
         // form, say) is never reported anywhere: not to the registrar and not to
         // the network it came from. The domain of app.url and of the from address

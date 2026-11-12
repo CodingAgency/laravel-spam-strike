@@ -72,6 +72,40 @@ it('falls back to abuse@ the domain, and tries the registered domain for a subdo
     Http::assertSentCount(2);
 });
 
+it('mails Cloudflare, with its reply desk in cc, for a domain on its nameservers without an abuse contact', function () {
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.cloudflare.com', 'mckenzie.ns.cloudflare.com']]));
+    Http::fake(['rdap.org/domain/*' => Http::response([], 404)]);
+
+    sendReport();
+
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@cloudflare.com')
+        && $mail->hasCc('abusereply@cloudflare.com')
+        && $mail->hasCc('owner@shop.example')
+        && $mail->hasBcc('hello@leadgen.example')
+        && ! $mail->hasTo('abuse@leadgen.example'));
+});
+
+it('keeps the abuse contact from RDAP for a domain on Cloudflare nameservers', function () {
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.cloudflare.com']]));
+    Http::fake(['rdap.org/domain/leadgen.example' => Http::response(rdap('abuse@registrar.example'))]);
+
+    sendReport();
+
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@registrar.example')
+        && ! $mail->hasCc('abusereply@cloudflare.com'));
+    Mail::assertNotSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@cloudflare.com'));
+});
+
+it('does not send a domain on other nameservers to Cloudflare', function () {
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['ns1.notcloudflare.com']]));
+    Http::fake(['rdap.org/domain/*' => Http::response([], 404)]);
+
+    sendReport();
+
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@leadgen.example'));
+    Mail::assertNotSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@cloudflare.com'));
+});
+
 it('mails a desk that asks for its web form anyway, with the sender in bcc', function () {
     Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@cloudflare.com'))]);
 

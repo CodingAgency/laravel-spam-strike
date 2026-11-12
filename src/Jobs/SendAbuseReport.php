@@ -80,10 +80,13 @@ final class SendAbuseReport implements ShouldQueue
      */
     private function reportDomain(string $domain, array $details, AbuseContact $contacts, Dns $dns): string
     {
-        $recipient = $contacts->forDomain($domain);
-        $webForm = config('spam-strike.reports.web_form_only')[$recipient] ?? null;
-        $cc = $this->cc();
         [$nameservers, $related] = $this->sharedNameservers($domain, $dns);
+        $desk = $this->nameserverFallback($nameservers);
+        $fromRdap = $contacts->fromRdapForDomain($domain);
+        $recipient = $fromRdap ?? $desk[0] ?? 'abuse@'.$domain;
+        $deskCc = $fromRdap === null ? array_slice($desk, 1) : [];
+        $webForm = config('spam-strike.reports.web_form_only')[$recipient] ?? null;
+        $cc = array_values(array_unique([...$deskCc, ...$this->cc()]));
 
         $mail = new AbuseReport(
             domain: $domain,
@@ -207,6 +210,29 @@ final class SendAbuseReport implements ShouldQueue
         Cache::put($key, $seen, now()->addDays(self::NAMESERVER_MEMORY_DAYS));
 
         return [$nameservers, $related];
+    }
+
+    /**
+     * The abuse desk of the party whose nameservers the domain uses (Cloudflare), for
+     * when RDAP gives no abuse contact: that party serves the domain, abuse@domain
+     * would only reach the spammer. The first address is the recipient, the rest cc.
+     *
+     * @param  list<string>  $nameservers
+     * @return list<string>
+     */
+    private function nameserverFallback(array $nameservers): array
+    {
+        foreach ((array) config('spam-strike.reports.nameserver_fallbacks') as $suffix => $addresses) {
+            $suffix = Str::lower(ltrim((string) $suffix, '.'));
+
+            foreach ($nameservers as $nameserver) {
+                if ($nameserver === $suffix || str_ends_with($nameserver, '.'.$suffix)) {
+                    return array_values(array_filter((array) $addresses));
+                }
+            }
+        }
+
+        return [];
     }
 
     /**

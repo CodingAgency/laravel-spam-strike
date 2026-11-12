@@ -23,6 +23,7 @@ Most form spam comes from cheap scripts that post straight to your form without 
 3. **A timing check.** No person types a whole message in under 3 seconds. A bot does.
 4. **Payback.** A refused bot gets a 422 straight away. A queued job then files the complaints:
    - **to the registrar of the sender's domain**, found through RDAP (what WHOIS became). The sender gets a blind copy, so they know you know. Other reported domains on exactly the same nameservers are named in the report, because spammers do love a fresh domain every week.
+   - **to Cloudflare** when the domain runs on Cloudflare's nameservers and RDAP gives no abuse contact: abuse@domain would only reach the spammer. Other parties go in `nameserver_fallbacks`.
    - **to the hosting provider the bot runs at**, found through RDAP for its IP address. That one is worth the most, because hosting providers switch off servers. It also works when the spammer's domain hides behind Cloudflare.
 
 Real visitors notice nothing. The page stays the same for everyone, so it can stay in your full-page or CDN cache. Only the small token route is never cached.

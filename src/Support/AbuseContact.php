@@ -33,6 +33,14 @@ class AbuseContact
      */
     public function forDomain(string $domain): string
     {
+        return $this->fromRdapForDomain($domain) ?? 'abuse@'.$domain;
+    }
+
+    /**
+     * The abuse address RDAP gives for the domain or for its last two labels, or null.
+     */
+    public function fromRdapForDomain(string $domain): ?string
+    {
         $labels = explode('.', $domain);
 
         foreach (array_unique([$domain, implode('.', array_slice($labels, -2))]) as $candidate) {
@@ -47,7 +55,7 @@ class AbuseContact
             }
         }
 
-        return 'abuse@'.$domain;
+        return null;
     }
 
     /**

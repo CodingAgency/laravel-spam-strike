@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 — 2026-11-12
+
+- `nameserver_fallbacks`: when RDAP gives no abuse contact for a domain, a domain on the listed nameservers is reported to that party instead of abuse@domain, which would only reach the spammer. Cloudflare is listed by default: `abuse@cloudflare.com`, with `abusereply@cloudflare.com` in cc. Published config files need the key added.
+
 ## 0.3.1 — 2026-11-09
 
 - **Never report yourself.** A form with an address at the site's own domain (`app.url`, the from address, or `own_domains`) is no longer reported anywhere. Until now only the report to the registrar was skipped, and the report to the network still went out: testing your own form without JavaScript reported your own connection to your provider.
