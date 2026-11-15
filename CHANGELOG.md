@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-11-15
+
+- `blocked_senders`: a sender whose domain matches one of these patterns is refused whatever else the form says, and reported. By default the lead generation sellers: `*leadgen*`, `*leads.*` and `*growthhack*`. The reason is `blocked sender`, which is in `silent.reasons` by default, so they are told it went through.
+- `reports.never_report`: abuse desks that are never mailed, by the domain of their address. Cloudflare is in it by default: it answers every report with a link to a form and does nothing.
+- `nameserver_fallbacks` is empty by default; Cloudflare is no longer in it. Published config files keep what they say: add `blocked_senders` and `never_report`, and take Cloudflare out of `nameserver_fallbacks`.
+
 ## 0.4.0 — 2026-11-12
 
 - `nameserver_fallbacks`: when RDAP gives no abuse contact for a domain, a domain on the listed nameservers is reported to that party instead of abuse@domain, which would only reach the spammer. Cloudflare is listed by default: `abuse@cloudflare.com`, with `abusereply@cloudflare.com` in cc. Published config files need the key added.

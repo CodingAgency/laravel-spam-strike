@@ -12,7 +12,7 @@ beforeEach(fn () => Queue::fake());
 
 $spam = fn (array $overrides = []): array => array_merge([
     'name' => 'Lead Gen',
-    'email' => 'hello@leadgen.example',
+    'email' => 'hello@spamco.example',
     'message' => 'We bring you fifty qualified leads every month.',
 ], $overrides);
 
@@ -33,8 +33,8 @@ it('refuses a form without a token with a 422 and queues an abuse report', funct
         ->assertJsonValidationErrors('form');
 
     Event::assertDispatched(SpamBlocked::class, fn ($event) => $event->reason === 'no javascript');
-    Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->domain === 'leadgen.example'
-        && $job->sender === 'hello@leadgen.example'
+    Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->domain === 'spamco.example'
+        && $job->sender === 'hello@spamco.example'
         && $job->submission['message'] === 'We bring you fifty qualified leads every month.');
 });
 
@@ -110,5 +110,37 @@ describe('fooling the bot', function () use ($spam) {
 
     it('keeps refusing the reasons that are not listed', function () use ($spam) {
         $this->postJson('/contact', $spam())->assertUnprocessable();
+    });
+});
+
+describe('blocked senders', function () use ($spam) {
+    it('refuses a lead generation seller with JavaScript, makes it think it went through, and reports it', function (string $email) use ($spam) {
+        config(['spam-strike.silent.json' => ['success' => true]]);
+
+        $this->postJson('/contact', $spam(['email' => $email, '_strike_token' => $this->token(30)]))
+            ->assertOk()
+            ->assertExactJson(['success' => true]);
+
+        Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->reason === 'blocked sender' && $job->sender === $email);
+    })->with([
+        'amazingleadgen.com' => 'jane@amazingleadgen.com',
+        'subdomain' => 'jane@mail.firstleadgen.io',
+        'leads.' => 'jane@qualifiedleads.co',
+        'growthhack' => 'jane@growthhackers.agency',
+    ]);
+
+    it('lets an ordinary sender through', function (string $email) use ($spam) {
+        $this->postJson('/contact', $spam(['email' => $email, '_strike_token' => $this->token(30)]))
+            ->assertOk()
+            ->assertJson(['sent' => true]);
+
+        Queue::assertNothingPushed();
+    })->with(['jan@bakkerij.nl', 'leadgen@gmail.com', 'info@leadership.example']);
+
+    it('blocks nothing with an empty list', function () use ($spam) {
+        config(['spam-strike.blocked_senders' => []]);
+
+        $this->postJson('/contact', $spam(['email' => 'jane@amazingleadgen.com', '_strike_token' => $this->token(30)]))
+            ->assertJson(['sent' => true]);
     });
 });

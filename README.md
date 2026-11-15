@@ -21,9 +21,9 @@ Most form spam comes from cheap scripts that post straight to your form without 
 1. **A JavaScript token.** The form only goes through with a token that the package's script fetches on the first touch of the form. The token is encrypted with your application key, so it cannot be made up. No JavaScript means no token, and no token means no entry.
 2. **A honeypot.** A hidden field that no person ever sees. Bots fill in every field they find, and that gives them away.
 3. **A timing check.** No person types a whole message in under 3 seconds. A bot does.
-4. **Payback.** A refused bot gets a 422 straight away. A queued job then files the complaints:
+4. **Blocked senders.** Lead generation sellers do run JavaScript and type their pitch by hand. A sender at a domain like `amazingleadgen.com` (`blocked_senders`: `*leadgen*`, `*leads.*`, `*growthhack*`) is refused anyway, is told it went through, and is reported.
+5. **Payback.** A refused bot gets a 422 straight away. A queued job then files the complaints:
    - **to the registrar of the sender's domain**, found through RDAP (what WHOIS became). The sender gets a blind copy, so they know you know. Other reported domains on exactly the same nameservers are named in the report, because spammers do love a fresh domain every week.
-   - **to Cloudflare** when the domain runs on Cloudflare's nameservers and RDAP gives no abuse contact: abuse@domain would only reach the spammer. Other parties go in `nameserver_fallbacks`.
    - **to the hosting provider the bot runs at**, found through RDAP for its IP address. That one is worth the most, because hosting providers switch off servers. It also works when the spammer's domain hides behind Cloudflare.
 
 Real visitors notice nothing. The page stays the same for everyone, so it can stay in your full-page or CDN cache. Only the small token route is never cached.
@@ -98,6 +98,7 @@ $seconds = $request->attributes->get('spam-strike.seconds'); // how long the for
 | Honeypot filled, with a token | 422 | no |
 | Sent within `minimum_seconds` of the token | 422 | no |
 | Token older than `token_lifetime` (someone left the tab open) | 422 | no |
+| Sender domain in `blocked_senders` (`*leadgen*`) | looks sent, is not | yes 📨 |
 | A real person | passes ✅ | no |
 
 Would you rather the bot never found out? List reasons under `silent.reasons` (say `honeypot` and `too fast`) and those get the answer of a form that went through: your JSON, or a flashed success message. The submission is still refused, and still reported where it would be. Let it think it won.
@@ -111,6 +112,7 @@ Spam Strike hits back hard, and it plays fair while doing it. The address in a w
 - each domain and each IP address is reported **once a day**, with **at most 25 complaints a day** in all, so nobody can use your form to flood other people;
 - **never you:** a form with an address at your own domain (you testing your own form) is never reported anywhere, not even to its network. Neither is an address that sent a valid form in the last 30 days, or one you list under `ignore_ips` (your office, your home connection, a monitoring service);
 - free mailbox providers (Gmail, Outlook and the like) are never reported to a registrar;
+- abuse desks that do nothing with a report (`never_report`, Cloudflare by default) are never mailed;
 - addresses of your own network (private, reserved and `100.64.0.0/10`) are never put in a complaint;
 - complaints go to abuse desks, whose job it is to look into them;
 - every complaint, and every one that was skipped, is logged and dispatched as an event: `SpamBlocked`, `AbuseReportSent` and `AbuseReportSkipped`.
@@ -128,7 +130,7 @@ php artisan vendor:publish --tag=spam-strike-config
 php artisan vendor:publish --tag=spam-strike-views
 ```
 
-The config file describes every option: the field names, the minimum seconds, the notice per language, who gets a copy, the blind copy to the sender, the limits, the exempt domains, and abuse desks that only take a web form (`web_form_only`). Cloudflare, for one, answers mailed complaints with a link to its form. By default they get the mail anyway.
+The config file describes every option: the field names, the minimum seconds, the notice per language, who gets a copy, the blind copy to the sender, the limits, the exempt domains, and abuse desks that only take a web form (`web_form_only`). Desks that do nothing with a report at all go in `never_report`: Cloudflare is in it by default, because it answers every complaint with a link to a form and keeps the site up.
 
 ## Testing a protected route
 

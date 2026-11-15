@@ -38,6 +38,12 @@ return [
     // left the page open.
     'token_lifetime' => 86400,
 
+    // Sender domains that are refused whatever else the form says, and reported:
+    // the lead generation sellers, which type their pitch by hand, JavaScript and
+    // all. Patterns with * on the domain of the address. 'blocked sender' is a
+    // silent reason by default, so they think it went through.
+    'blocked_senders' => ['*leadgen*', '*leads.*', '*growthhack*'],
+
     /*
     |--------------------------------------------------------------------------
     | What a blocked submission gets back
@@ -57,7 +63,8 @@ return [
     | For the reasons listed here a blocked submission gets the answer of a
     | form that went through, so the bot does not learn it was caught and does
     | not try harder. It is still refused, and still reported where it would be.
-    | The reasons: 'no javascript', 'honeypot', 'too fast', 'expired token'.
+    | The reasons: 'no javascript', 'honeypot', 'too fast', 'expired token',
+    | 'blocked sender'.
     |
     | Leave 'no javascript' and 'expired token' out unless you mean it: a real
     | person with JavaScript blocked, or a tab left open for a day, would then
@@ -66,7 +73,7 @@ return [
     */
 
     'silent' => [
-        'reasons' => [],
+        'reasons' => ['blocked sender'],
 
         // What a request that expects JSON gets back, with status 200.
         'json' => ['success' => true],
@@ -159,9 +166,13 @@ return [
         // no abuse contact: the domain sits behind that party, and abuse@domain
         // would only reach the spammer. Keyed by nameserver suffix; the first
         // address gets the report, the others are in cc.
-        'nameserver_fallbacks' => [
-            'ns.cloudflare.com' => ['abuse@cloudflare.com', 'abusereply@cloudflare.com'],
-        ],
+        'nameserver_fallbacks' => [],
+
+        // Abuse desks that are never mailed, by the domain of their address: they
+        // do nothing with a report. Cloudflare answers every one with a link to a
+        // form and leaves the site up. A report that would go there is skipped,
+        // for the registrar and for the network alike.
+        'never_report' => ['cloudflare.com'],
 
         // Domains that are you. A form with an address there (you testing your own
         // form, say) is never reported anywhere: not to the registrar and not to

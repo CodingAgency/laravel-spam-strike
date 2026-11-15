@@ -72,32 +72,45 @@ it('falls back to abuse@ the domain, and tries the registered domain for a subdo
     Http::assertSentCount(2);
 });
 
-it('mails Cloudflare, with its reply desk in cc, for a domain on its nameservers without an abuse contact', function () {
-    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.cloudflare.com', 'mckenzie.ns.cloudflare.com']]));
+it('mails the desk of the nameservers, with the rest in cc, for a domain without an abuse contact', function () {
+    config(['spam-strike.reports.nameserver_fallbacks' => ['ns.proxy.example' => ['abuse@proxy.example', 'abusereply@proxy.example']]]);
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.proxy.example', 'mckenzie.ns.proxy.example']]));
     Http::fake(['rdap.org/domain/*' => Http::response([], 404)]);
 
     sendReport();
 
-    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@cloudflare.com')
-        && $mail->hasCc('abusereply@cloudflare.com')
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@proxy.example')
+        && $mail->hasCc('abusereply@proxy.example')
         && $mail->hasCc('owner@shop.example')
         && $mail->hasBcc('hello@leadgen.example')
         && ! $mail->hasTo('abuse@leadgen.example'));
 });
 
-it('keeps the abuse contact from RDAP for a domain on Cloudflare nameservers', function () {
-    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.cloudflare.com']]));
+it('keeps the abuse contact from RDAP for a domain on those nameservers', function () {
+    config(['spam-strike.reports.nameserver_fallbacks' => ['ns.proxy.example' => ['abuse@proxy.example']]]);
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.proxy.example']]));
     Http::fake(['rdap.org/domain/leadgen.example' => Http::response(rdap('abuse@registrar.example'))]);
 
     sendReport();
 
-    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@registrar.example')
-        && ! $mail->hasCc('abusereply@cloudflare.com'));
-    Mail::assertNotSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@cloudflare.com'));
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@registrar.example'));
+    Mail::assertNotSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@proxy.example'));
 });
 
-it('does not send a domain on other nameservers to Cloudflare', function () {
-    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['ns1.notcloudflare.com']]));
+it('never mails Cloudflare, not as registrar and not as network', function () {
+    config(['spam-strike.reports.network' => true]);
+    Http::fake([
+        'rdap.org/domain/*' => Http::response(rdap('registrar-abuse@cloudflare.com')),
+        'rdap.org/ip/*' => Http::response(rdap('abuse@cloudflare.com')),
+    ]);
+
+    sendReport();
+
+    Mail::assertNothingSent();
+});
+
+it('does not send a Cloudflare domain without an abuse contact to Cloudflare', function () {
+    app()->instance(Dns::class, new FakeDns(nameservers: ['leadgen.example' => ['edward.ns.cloudflare.com']]));
     Http::fake(['rdap.org/domain/*' => Http::response([], 404)]);
 
     sendReport();
@@ -107,22 +120,22 @@ it('does not send a domain on other nameservers to Cloudflare', function () {
 });
 
 it('mails a desk that asks for its web form anyway, with the sender in bcc', function () {
-    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@cloudflare.com'))]);
+    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@proxy.example'))]);
 
     sendReport();
 
-    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('registrar-abuse@cloudflare.com')
+    Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('registrar-abuse@proxy.example')
         && $mail->hasBcc('hello@leadgen.example'));
 });
 
 it('sends a desk listed as web form only nothing, and tells the owner instead', function () {
-    config(['spam-strike.reports.web_form_only' => ['registrar-abuse@cloudflare.com' => 'https://www.cloudflare.com/trust-hub/reporting-abuse/']]);
-    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@cloudflare.com'))]);
+    config(['spam-strike.reports.web_form_only' => ['registrar-abuse@proxy.example' => 'https://proxy.example/report-abuse']]);
+    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@proxy.example'))]);
 
     sendReport();
 
     Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('owner@shop.example')
-        && ! $mail->hasTo('registrar-abuse@cloudflare.com')
+        && ! $mail->hasTo('registrar-abuse@proxy.example')
         && $mail->bcc === []
         && str_starts_with($mail->envelope()->subject, '[Action needed: web form]'));
 });
@@ -186,7 +199,7 @@ it('tells the registrar about other reported domains on the same nameservers', f
         'amazingleadgen.example' => $shared,
         'other.example' => ['ns1.elsewhere.example'],
     ]));
-    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@cloudflare.com'))]);
+    Http::fake(['rdap.org/*' => Http::response(rdap('registrar-abuse@proxy.example'))]);
 
     sendReport('firstleadgen.example');
     sendReport('other.example');
@@ -223,13 +236,13 @@ describe('the network the bot runs at', function () {
 
     it('also reports to the abuse contact of the network the request came from', function () {
         Http::fake([
-            'rdap.org/domain/*' => Http::response(rdap('registrar-abuse@cloudflare.com')),
+            'rdap.org/domain/*' => Http::response(rdap('registrar-abuse@proxy.example')),
             'rdap.org/ip/203.0.113.7' => Http::response(rdap('abuse@hosting.example')),
         ]);
 
         sendReport();
 
-        Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('registrar-abuse@cloudflare.com') && $mail->ip === null);
+        Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('registrar-abuse@proxy.example') && $mail->ip === null);
         Mail::assertSent(AbuseReport::class, fn (AbuseReport $mail) => $mail->hasTo('abuse@hosting.example')
             && $mail->hasCc('owner@shop.example')
             && $mail->bcc === []
@@ -301,7 +314,7 @@ describe('never yourself', function () {
         Http::fake(['rdap.org/domain/*' => Http::response([], 404), 'rdap.org/ip/*' => Http::response(rdap('abuse@isp.example'))]);
 
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.7'])
-            ->postJson('/contact', ['_strike_token' => $this->token(), 'email' => 'jan@leadgen.example'])
+            ->postJson('/contact', ['_strike_token' => $this->token(), 'email' => 'jan@bakkerij.example'])
             ->assertOk();
 
         sendReport();

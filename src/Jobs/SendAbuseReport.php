@@ -85,6 +85,12 @@ final class SendAbuseReport implements ShouldQueue
         $fromRdap = $contacts->fromRdapForDomain($domain);
         $recipient = $fromRdap ?? $desk[0] ?? 'abuse@'.$domain;
         $deskCc = $fromRdap === null ? array_slice($desk, 1) : [];
+        if ($this->isNeverReported($recipient)) {
+            $this->skip($domain, "abuse desk {$recipient} is never reported to");
+
+            return $recipient;
+        }
+
         $webForm = config('spam-strike.reports.web_form_only')[$recipient] ?? null;
         $cc = array_values(array_unique([...$deskCc, ...$this->cc()]));
 
@@ -137,6 +143,12 @@ final class SendAbuseReport implements ShouldQueue
 
         if ($recipient === null) {
             $this->skip($ip, 'no abuse contact for the network');
+
+            return;
+        }
+
+        if ($this->isNeverReported($recipient)) {
+            $this->skip($ip, "abuse desk {$recipient} is never reported to");
 
             return;
         }
@@ -241,6 +253,24 @@ final class SendAbuseReport implements ShouldQueue
     private function cc(): array
     {
         return array_values(array_filter((array) config('spam-strike.reports.cc')));
+    }
+
+    /**
+     * Whether the address belongs to an abuse desk of `never_report`, which does nothing with a report.
+     */
+    private function isNeverReported(string $recipient): bool
+    {
+        $desk = Str::lower(Str::after($recipient, '@'));
+
+        foreach ((array) config('spam-strike.reports.never_report') as $domain) {
+            $domain = Str::lower((string) $domain);
+
+            if ($desk === $domain || str_ends_with($desk, '.'.$domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isOwnDomain(string $domain): bool

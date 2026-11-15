@@ -22,6 +22,7 @@ use Symfony\Component\HttpFoundation\Response;
  * - The honeypot filled in: refused, and reported when there was no token either.
  * - Sent within the minimum seconds of the token: refused.
  * - A token older than the lifetime: refused, not reported.
+ * - A sender whose domain matches `blocked_senders` (lead generation sellers): refused, and reported.
  *
  * Reasons listed under `silent.reasons` get the answer of a form that went
  * through instead, so the bot does not learn it was caught.
@@ -38,6 +39,8 @@ final class ProtectAgainstSpam
     public const TOO_FAST = 'too fast';
 
     public const EXPIRED = 'expired token';
+
+    public const BLOCKED_SENDER = 'blocked sender';
 
     /** How long an address that sent a valid form is never reported to its network. */
     public const TRUSTED_DAYS = 30;
@@ -67,6 +70,10 @@ final class ProtectAgainstSpam
             return $this->block($request, self::NO_JAVASCRIPT, report: true);
         }
 
+        if ($this->isBlockedSender($request)) {
+            return $this->block($request, self::BLOCKED_SENDER, report: true);
+        }
+
         if ($age > (int) config('spam-strike.token_lifetime')) {
             return $this->block($request, self::EXPIRED, report: false);
         }
@@ -82,6 +89,29 @@ final class ProtectAgainstSpam
         $request->attributes->set('spam-strike.details', RequestDetails::from($request));
 
         return $next($request);
+    }
+
+    /**
+     * A sender at a domain of `blocked_senders`, such as the lead generation sellers that
+     * do run JavaScript and fill in a form by hand. Matched on the domain of the address.
+     */
+    private function isBlockedSender(Request $request): bool
+    {
+        $email = Str::lower(trim((string) $request->input((string) config('spam-strike.fields.email'), '')));
+
+        if (! str_contains($email, '@')) {
+            return false;
+        }
+
+        $domain = Str::after($email, '@');
+
+        foreach ((array) config('spam-strike.blocked_senders') as $pattern) {
+            if (fnmatch(Str::lower((string) $pattern), $domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function block(Request $request, string $reason, bool $report): Response
