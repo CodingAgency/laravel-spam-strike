@@ -48,6 +48,10 @@ return [
     |--------------------------------------------------------------------------
     | What a blocked submission gets back
     |--------------------------------------------------------------------------
+    |
+    | Only for the reasons that are not listed under 'silent' below: by default
+    | that is the expired token alone, the one a real person can run into.
+    |
     */
 
     'response' => [
@@ -62,24 +66,34 @@ return [
     |
     | For the reasons listed here a blocked submission gets the answer of a
     | form that went through, so the bot does not learn it was caught and does
-    | not try harder. It is still refused, and still reported where it would be.
-    | The reasons: 'no javascript', 'honeypot', 'too fast', 'expired token',
-    | 'blocked sender'.
+    | not try again another way. It is still refused, logged, and reported
+    | where it would be. The reasons: 'no javascript', 'honeypot', 'too fast',
+    | 'expired token', 'blocked sender'.
     |
-    | Leave 'no javascript' and 'expired token' out unless you mean it: a real
-    | person with JavaScript blocked, or a tab left open for a day, would then
-    | think their message was sent.
+    | Everything a bot does is silent by default. A person never gets there:
+    | without JavaScript the form is not shown, the honeypot is hidden, and the
+    | script waits out the minimum seconds itself. 'expired token' is left out,
+    | because that is a person who left the tab open for a day and who should
+    | hear that the message was not sent. Take 'no javascript' out while you
+    | build a form that sends itself with fetch(): forget to await
+    | SpamStrike.ready(form) and you would be told it went through.
     |
     */
 
     'silent' => [
-        'reasons' => ['blocked sender'],
+        'reasons' => ['no javascript', 'honeypot', 'too fast', 'blocked sender'],
 
-        // What a request that expects JSON gets back, with status 200.
+        // What a request that expects JSON gets back, with status 200. Make it
+        // what your own controller answers when a message is sent.
         'json' => ['success' => true],
 
         // What a plain form gets flashed into the session as it is sent back.
         'flash' => ['success' => 'Thank you for your message.'],
+
+        // Where a plain form is sent, when a form that went through does not come
+        // back to its own page: the URL or path of your thank-you page. null
+        // sends it back to the form.
+        'redirect' => null,
     ],
 
     /*

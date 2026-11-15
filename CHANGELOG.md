@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 — 2026-11-15
+
+- **A caught bot is told it went through.** `silent.reasons` now lists `no javascript`, `honeypot` and `too fast` next to `blocked sender` by default: those get a 200 with `silent.json`, or a redirect with `silent.flash`, instead of a 422, so the bot has no reason to try again another way. The submission is still refused, logged and reported as before. Only an expired token still gets the 422: that is a person who left the tab open.
+- `silent.redirect`: the URL or path of your thank-you page, for a plain form that does not come back to its own page when it is sent. `null` sends it back to the form.
+- Published config files keep what they say: add the reasons to `silent.reasons` to get the new behaviour. To keep the 422, set `silent.reasons` to `['blocked sender']`.
+
 ## 0.5.0 — 2026-11-15
 
 - `blocked_senders`: a sender whose domain matches one of these patterns is refused whatever else the form says, and reported. By default the lead generation sellers: `*leadgen*`, `*leads.*` and `*growthhack*`. The reason is `blocked sender`, which is in `silent.reasons` by default, so they are told it went through.

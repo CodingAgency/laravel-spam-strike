@@ -24,8 +24,9 @@ use Symfony\Component\HttpFoundation\Response;
  * - A token older than the lifetime: refused, not reported.
  * - A sender whose domain matches `blocked_senders` (lead generation sellers): refused, and reported.
  *
- * Reasons listed under `silent.reasons` get the answer of a form that went
- * through instead, so the bot does not learn it was caught.
+ * Reasons listed under `silent.reasons` (by default all of them but the expired
+ * token) get the answer of a form that went through instead of a refusal, so
+ * the bot does not learn it was caught.
  *
  * What passes gets the seconds the form was in use and the request details as
  * request attributes `spam-strike.seconds` and `spam-strike.details`.
@@ -153,7 +154,9 @@ final class ProtectAgainstSpam
             return response()->json((array) config('spam-strike.silent.json'));
         }
 
-        $response = back(303);
+        $redirect = config('spam-strike.silent.redirect');
+
+        $response = is_string($redirect) && $redirect !== '' ? redirect()->to($redirect, 303) : back(303);
 
         foreach ((array) config('spam-strike.silent.flash') as $key => $value) {
             $response->with((string) $key, $value);

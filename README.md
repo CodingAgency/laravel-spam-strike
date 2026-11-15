@@ -22,7 +22,7 @@ Most form spam comes from cheap scripts that post straight to your form without 
 2. **A honeypot.** A hidden field that no person ever sees. Bots fill in every field they find, and that gives them away.
 3. **A timing check.** No person types a whole message in under 3 seconds. A bot does.
 4. **Blocked senders.** Lead generation sellers do run JavaScript and type their pitch by hand. A sender at a domain like `amazingleadgen.com` (`blocked_senders`: `*leadgen*`, `*leads.*`, `*growthhack*`) is refused anyway, is told it went through, and is reported.
-5. **Payback.** A refused bot gets a 422 straight away. A queued job then files the complaints:
+5. **Payback.** A caught bot is told its message was sent: a 200 with your success answer, so it has no reason to try again another way. Nothing is sent. A queued job then files the complaints:
    - **to the registrar of the sender's domain**, found through RDAP (what WHOIS became). The sender gets a blind copy, so they know you know. Other reported domains on exactly the same nameservers are named in the report, because spammers do love a fresh domain every week.
    - **to the hosting provider the bot runs at**, found through RDAP for its IP address. That one is worth the most, because hosting providers switch off servers. It also works when the spammer's domain hides behind Cloudflare.
 
@@ -65,7 +65,7 @@ Route::post('/contact', [ContactController::class, 'submit'])
     ->name('contact.submit');
 ```
 
-A refused submission gets a 422 with the error on the `form` key, in JSON or as a redirect back.
+A caught bot gets the answer of a form that went through (see [Who gets what](#who-gets-what)), and your controller never runs. Only an expired token gets a 422 with the error on the `form` key, in JSON or as a redirect back, so show `$errors->first('form')` near the submit button.
 
 ### Forms sent with fetch()
 
@@ -93,15 +93,19 @@ $seconds = $request->attributes->get('spam-strike.seconds'); // how long the for
 
 | Submission | Response | Complaint filed |
 |---|---|---|
-| No token, or a made-up one | 422 | yes 📨 |
-| Honeypot filled, no token | 422 | yes 📨 |
-| Honeypot filled, with a token | 422 | no |
-| Sent within `minimum_seconds` of the token | 422 | no |
-| Token older than `token_lifetime` (someone left the tab open) | 422 | no |
+| No token, or a made-up one | looks sent, is not | yes 📨 |
+| Honeypot filled, no token | looks sent, is not | yes 📨 |
+| Honeypot filled, with a token | looks sent, is not | no |
+| Sent within `minimum_seconds` of the token | looks sent, is not | no |
 | Sender domain in `blocked_senders` (`*leadgen*`) | looks sent, is not | yes 📨 |
+| Token older than `token_lifetime` (someone left the tab open) | 422 | no |
 | A real person | passes ✅ | no |
 
-Would you rather the bot never found out? List reasons under `silent.reasons` (say `honeypot` and `too fast`) and those get the answer of a form that went through: your JSON, or a flashed success message. The submission is still refused, and still reported where it would be. Let it think it won.
+"Looks sent" is the answer of a form that went through: a 200 with `silent.json` for a request that expects JSON, and for a plain form a redirect back with `silent.flash` in the session, or to your thank-you page when you set `silent.redirect`. Make them what your own controller answers and the bot cannot tell the difference. The submission is still refused, logged, and reported where it would be. Let it think it won.
+
+A real person never gets one of these answers: without JavaScript the form is not shown, the honeypot is hidden, and the script waits out the minimum seconds itself. The expired token is the one a person can run into, so that one is told the truth.
+
+Would you rather refuse out loud? Take a reason out of `silent.reasons` and it gets the 422 again. Do that for `no javascript` while you build a form that sends itself with `fetch()`: forget to await `SpamStrike.ready(form)` and you would be told it went through.
 
 Without JavaScript, the form is hidden and a short notice is shown in the visitor's browser language, with your e-mail address. Languages you did not configure get nothing at all. If you only serve Dutch and English, a bot claiming to be from somewhere else does not need help.
 

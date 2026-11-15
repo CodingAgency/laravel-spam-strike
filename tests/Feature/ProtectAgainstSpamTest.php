@@ -6,6 +6,7 @@ use CodingAgency\SpamStrike\Events\SpamBlocked;
 use CodingAgency\SpamStrike\Jobs\SendAbuseReport;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(fn () => Queue::fake());
@@ -25,91 +26,109 @@ it('lets a form with a token through, with the seconds and the request details',
     Queue::assertNothingPushed();
 });
 
-it('refuses a form without a token with a 422 and queues an abuse report', function () use ($spam) {
+it('tells a form without a token that it went through, logs it and queues an abuse report', function () use ($spam) {
     Event::fake([SpamBlocked::class]);
+    Log::spy();
 
     $this->postJson('/contact', $spam())
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('form');
+        ->assertOk()
+        ->assertExactJson(['success' => true]);
 
+    Log::shouldHaveReceived('info')->once()->withArgs(fn (string $message, array $context) => $context['reason'] === 'no javascript');
     Event::assertDispatched(SpamBlocked::class, fn ($event) => $event->reason === 'no javascript');
     Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->domain === 'spamco.example'
         && $job->sender === 'hello@spamco.example'
         && $job->submission['message'] === 'We bring you fifty qualified leads every month.');
 });
 
-it('sends a plain HTML form back with the error on the form key', function () use ($spam) {
+it('never lets a fooled submission reach the controller', function () use ($spam) {
+    $this->postJson('/contact', $spam())->assertOk()->assertJsonMissingPath('sent');
+    $this->postJson('/contact', $spam(['website_url' => 'https://x.example', '_strike_token' => $this->token()]))->assertJsonMissingPath('sent');
+    $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))->assertJsonMissingPath('sent');
+});
+
+it('sends a plain HTML form back with the success message and no error', function () use ($spam) {
     $this->from('/form')->post('/contact', $spam())
+        ->assertStatus(303)
         ->assertRedirect('/form')
-        ->assertSessionHasErrors('form');
+        ->assertSessionHas('success', 'Thank you for your message.')
+        ->assertSessionHasNoErrors();
+});
+
+it('sends a plain HTML form to the thank-you page when there is one', function () use ($spam) {
+    config(['spam-strike.silent.redirect' => '/thanks']);
+
+    $this->from('/form')->post('/contact', $spam())
+        ->assertStatus(303)
+        ->assertRedirect('/thanks')
+        ->assertSessionHas('success');
 });
 
 it('treats a token it did not hand out as none', function (Closure $token) use ($spam) {
-    $this->postJson('/contact', $spam(['_strike_token' => $token()]))->assertUnprocessable();
+    $this->postJson('/contact', $spam(['_strike_token' => $token()]))->assertOk()->assertExactJson(['success' => true]);
 
-    Queue::assertPushed(SendAbuseReport::class);
+    Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->reason === 'no javascript');
 })->with([
     'made up' => fn () => fn () => 'abc123',
     'someone else\'s payload' => fn () => fn () => Crypt::encryptString('1700000000'),
 ]);
 
-it('refuses a form sent within seconds of its token, without a report', function () use ($spam) {
-    $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))->assertUnprocessable();
+it('fools a form sent within seconds of its token, without a report', function () use ($spam) {
+    $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))->assertOk()->assertExactJson(['success' => true]);
 
     Queue::assertNothingPushed();
 });
 
-it('refuses an expired token without reporting the person who left the page open', function () use ($spam) {
-    $this->postJson('/contact', $spam(['_strike_token' => $this->token(90000)]))->assertUnprocessable();
+it('tells the person who left the page open that it was not sent, and does not report them', function () use ($spam) {
+    $this->postJson('/contact', $spam(['_strike_token' => $this->token(90000)]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('form');
 
     Queue::assertNothingPushed();
 });
 
-it('refuses a filled honeypot, and reports it only without a token', function () use ($spam) {
-    $this->postJson('/contact', $spam(['website_url' => 'https://x.example', '_strike_token' => $this->token()]))->assertUnprocessable();
+it('fools a filled honeypot, and reports it only without a token', function () use ($spam) {
+    $this->postJson('/contact', $spam(['website_url' => 'https://x.example', '_strike_token' => $this->token()]))->assertOk()->assertExactJson(['success' => true]);
     Queue::assertNothingPushed();
 
-    $this->postJson('/contact', $spam(['website_url' => 'https://x.example']))->assertUnprocessable();
+    $this->postJson('/contact', $spam(['website_url' => 'https://x.example']))->assertOk()->assertExactJson(['success' => true]);
     Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->reason === 'honeypot');
 });
 
 it('queues nothing without a valid address, or with reports switched off', function () use ($spam) {
-    $this->postJson('/contact', $spam(['email' => 'nope']))->assertUnprocessable();
+    $this->postJson('/contact', $spam(['email' => 'nope']))->assertOk();
 
     config(['spam-strike.reports.enabled' => false]);
-    $this->postJson('/contact', $spam())->assertUnprocessable();
+    $this->postJson('/contact', $spam())->assertOk();
 
     Queue::assertNothingPushed();
 });
 
-describe('fooling the bot', function () use ($spam) {
-    beforeEach(fn () => config([
-        'spam-strike.silent.reasons' => ['honeypot', 'too fast'],
-        'spam-strike.silent.json' => ['success' => true, 'message' => 'Sent!'],
-        'spam-strike.silent.flash' => ['success' => 'Thanks!'],
-    ]));
+describe('refusing out loud', function () use ($spam) {
+    beforeEach(fn () => config(['spam-strike.silent.reasons' => ['honeypot']]));
 
-    it('answers a listed reason like a form that went through', function () use ($spam) {
-        $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))
+    it('refuses a reason that is not listed with a 422 on the form key, and still reports it', function () use ($spam) {
+        $this->postJson('/contact', $spam())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('form');
+
+        $this->postJson('/contact', $spam(['_strike_token' => $this->token(1)]))->assertUnprocessable();
+
+        Queue::assertPushed(SendAbuseReport::class, 1);
+    });
+
+    it('sends a plain HTML form back with the error on the form key', function () use ($spam) {
+        $this->from('/form')->post('/contact', $spam())
+            ->assertRedirect('/form')
+            ->assertSessionHasErrors('form');
+    });
+
+    it('keeps fooling the reasons that are listed, with the configured answer', function () use ($spam) {
+        config(['spam-strike.silent.json' => ['success' => true, 'message' => 'Sent!']]);
+
+        $this->postJson('/contact', $spam(['website_url' => 'https://x.example']))
             ->assertOk()
             ->assertExactJson(['success' => true, 'message' => 'Sent!']);
-    });
-
-    it('flashes the success message to a plain form', function () use ($spam) {
-        $this->from('/form')->post('/contact', $spam(['website_url' => 'https://x.example', '_strike_token' => $this->token()]))
-            ->assertRedirect('/form')
-            ->assertSessionHas('success', 'Thanks!')
-            ->assertSessionHasNoErrors();
-    });
-
-    it('still reports what it fools', function () use ($spam) {
-        $this->postJson('/contact', $spam(['website_url' => 'https://x.example']))->assertOk();
-
-        Queue::assertPushed(SendAbuseReport::class, fn ($job) => $job->reason === 'honeypot');
-    });
-
-    it('keeps refusing the reasons that are not listed', function () use ($spam) {
-        $this->postJson('/contact', $spam())->assertUnprocessable();
     });
 });
 
