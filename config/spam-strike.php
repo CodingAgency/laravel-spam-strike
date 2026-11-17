@@ -131,6 +131,10 @@ return [
     | not optional: one report per domain per period, and a daily maximum, so a
     | bot filling in other people's domains cannot make your site send mail.
     |
+    | Switch them off (SPAM_STRIKE_REPORTS=false) and nothing is queued: spam
+    | is still blocked and logged, with the report it would have been, and no
+    | queue worker is needed for Spam Strike.
+    |
     */
 
     'reports' => [

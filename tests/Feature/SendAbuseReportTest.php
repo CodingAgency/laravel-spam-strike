@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use CodingAgency\SpamStrike\Events\AbuseReportSkipped;
 use CodingAgency\SpamStrike\Jobs\SendAbuseReport;
 use CodingAgency\SpamStrike\Mail\AbuseReport;
 use CodingAgency\SpamStrike\Support\AbuseContact;
 use CodingAgency\SpamStrike\Support\Dns;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
@@ -47,6 +49,16 @@ function rdap(string $email): array
         'vcardArray' => ['vcard', [['version', [], 'text', '4.0'], ['email', [], 'text', $email]]],
     ]]]]];
 }
+
+it('sends nothing when reports were switched off after the job was queued', function () {
+    config(['spam-strike.reports.enabled' => false]);
+    Event::fake([AbuseReportSkipped::class]);
+
+    sendReport();
+
+    Mail::assertNothingSent();
+    Event::assertDispatched(AbuseReportSkipped::class, fn ($event) => $event->reason === 'reports switched off');
+});
 
 it('mails the abuse contact from RDAP, the owner in cc and the sender in bcc', function () {
     Http::fake(['rdap.org/domain/leadgen.example' => Http::response(rdap('abuse@registrar.example'))]);

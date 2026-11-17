@@ -171,13 +171,19 @@ final class ProtectAgainstSpam
      */
     private function queueReport(Request $request, string $reason): void
     {
-        if (! config('spam-strike.reports.enabled')) {
-            return;
-        }
-
         $email = Str::lower(trim((string) $request->input((string) config('spam-strike.fields.email'), '')));
 
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return;
+        }
+
+        // Switched off: nothing is queued, so no worker is needed, and the log says what would have gone out.
+        if (! config('spam-strike.reports.enabled')) {
+            Log::info('Spam Strike did not report a submission: reports are switched off', [
+                'domain' => Str::after($email, '@'),
+                'reason' => $reason,
+            ]);
+
             return;
         }
 

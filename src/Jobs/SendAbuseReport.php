@@ -53,6 +53,14 @@ final class SendAbuseReport implements ShouldQueue
     public function handle(AbuseContact $contacts, Dns $dns): void
     {
         $domain = Str::lower($this->domain);
+
+        // Switched off after this job was queued: it still ends here, with nothing sent.
+        if (! config('spam-strike.reports.enabled')) {
+            $this->skip($domain, 'reports switched off');
+
+            return;
+        }
+
         $details = $this->publicDetails();
         $domainRecipient = null;
 

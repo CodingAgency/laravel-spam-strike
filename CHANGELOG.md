@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 — 2026-11-17
+
+- With reports switched off (`reports.enabled`, `SPAM_STRIKE_REPORTS=false`) a blocked submission is logged with the domain it would have been reported to, and nothing is queued: no queue worker is needed for Spam Strike.
+- A report job still in the queue when reports are switched off sends nothing and is skipped with the reason `reports switched off`.
+
 ## 0.6.0 — 2026-11-15
 
 - **A caught bot is told it went through.** `silent.reasons` now lists `no javascript`, `honeypot` and `too fast` next to `blocked sender` by default: those get a 200 with `silent.json`, or a redirect with `silent.flash`, instead of a 422, so the bot has no reason to try again another way. The submission is still refused, logged and reported as before. Only an expired token still gets the 422: that is a person who left the tab open.

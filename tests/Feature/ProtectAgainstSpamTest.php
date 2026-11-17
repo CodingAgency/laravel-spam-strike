@@ -104,6 +104,16 @@ it('queues nothing without a valid address, or with reports switched off', funct
     Queue::assertNothingPushed();
 });
 
+it('logs the report it would have sent when reports are switched off', function () use ($spam) {
+    config(['spam-strike.reports.enabled' => false]);
+    Log::spy();
+
+    $this->postJson('/contact', $spam())->assertOk();
+
+    Queue::assertNothingPushed();
+    Log::shouldHaveReceived('info')->with('Spam Strike did not report a submission: reports are switched off', Mockery::on(fn ($context) => $context['domain'] === 'spamco.example'));
+});
+
 describe('refusing out loud', function () use ($spam) {
     beforeEach(fn () => config(['spam-strike.silent.reasons' => ['honeypot']]));
 
