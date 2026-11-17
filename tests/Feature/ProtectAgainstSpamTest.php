@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use CodingAgency\SpamStrike\Events\SpamBlocked;
 use CodingAgency\SpamStrike\Jobs\SendAbuseReport;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -171,5 +172,57 @@ describe('blocked senders', function () use ($spam) {
 
         $this->postJson('/contact', $spam(['email' => 'jane@amazingleadgen.com', '_strike_token' => $this->token(30)]))
             ->assertJson(['sent' => true]);
+    });
+});
+
+describe('queueing only what the job would send', function () use ($spam) {
+    beforeEach(fn () => config(['spam-strike.silent.reasons' => []]));
+
+    it('queues nothing for a domain that was reported in the last day, so a bot that keeps posting keeps no worker awake', function () use ($spam) {
+        Cache::put('spam-strike:report:domain:spamco.example', now()->toIso8601String(), now()->addDay());
+        config(['spam-strike.reports.network' => false]);
+
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/contact', $spam())->assertUnprocessable();
+        }
+
+        Queue::assertNothingPushed();
+    });
+
+    it('still queues a domain it has not reported yet', function () use ($spam) {
+        $this->postJson('/contact', $spam())->assertUnprocessable();
+
+        Queue::assertPushed(SendAbuseReport::class, 1);
+    });
+
+    it('queues nothing for a free mailbox provider when the network is reported already', function () use ($spam) {
+        Cache::put('spam-strike:report:ip:127.0.0.1', true, now()->addDay());
+
+        $this->postJson('/contact', $spam(['email' => 'bot@gmail.com']))->assertUnprocessable();
+
+        Queue::assertNothingPushed();
+    });
+
+    it('still queues a free mailbox provider when only its network can be reported', function () use ($spam) {
+        config(['spam-strike.reports.network' => true]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+            ->postJson('/contact', $spam(['email' => 'bot@gmail.com']))->assertUnprocessable();
+
+        Queue::assertPushed(SendAbuseReport::class, 1);
+    });
+
+    it('queues nothing once the daily limit is used', function () use ($spam) {
+        Cache::put('spam-strike:reports:'.now()->format('Y-m-d'), (int) config('spam-strike.reports.daily_limit'), now()->addDay());
+
+        $this->postJson('/contact', $spam())->assertUnprocessable();
+
+        Queue::assertNothingPushed();
+    });
+
+    it('queues nothing for an address of its own network, or for our own domain', function () use ($spam) {
+        $this->postJson('/contact', $spam(['email' => 'test@'.parse_url((string) config('app.url'), PHP_URL_HOST)]))->assertUnprocessable();
+
+        Queue::assertNothingPushed();
     });
 });

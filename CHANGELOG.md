@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 — 2026-11-17
+
+- **No job for a report that would be skipped.** The middleware now reads the limits the job applies (own or exempt domain, a domain or address reported in the last day, the daily limit, an address on `ignore_ips` or one that sent a valid form) before it dispatches, and queues nothing when neither the registrar nor the network report could still go out. A bot that posts every half minute from the same few addresses used to queue a job for each post, 2,700 a day on coding.agency, and a queue worker that wakes for a message every thirty seconds never sleeps. Now it is at most the handful of reports that can actually be sent. Every skipped one is logged (`Spam Strike did not queue an abuse report`).
+
 ## 0.6.1 — 2026-11-17
 
 - With reports switched off (`reports.enabled`, `SPAM_STRIKE_REPORTS=false`) a blocked submission is logged with the domain it would have been reported to, and nothing is queued: no queue worker is needed for Spam Strike.

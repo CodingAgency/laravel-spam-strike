@@ -8,6 +8,7 @@ use Closure;
 use CodingAgency\SpamStrike\Events\SpamBlocked;
 use CodingAgency\SpamStrike\Jobs\SendAbuseReport;
 use CodingAgency\SpamStrike\Support\FormToken;
+use CodingAgency\SpamStrike\Support\ReportGate;
 use CodingAgency\SpamStrike\Support\RequestDetails;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -174,6 +175,14 @@ final class ProtectAgainstSpam
         $email = Str::lower(trim((string) $request->input((string) config('spam-strike.fields.email'), '')));
 
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return;
+        }
+
+        // What the job would skip is not queued: a bot that posts every half minute would
+        // otherwise keep a worker awake all day for jobs that do nothing.
+        if (! ReportGate::worthQueueing(Str::after($email, '@'), $request->ip())) {
+            Log::info('Spam Strike did not queue an abuse report', ['email' => $email, 'reason' => $reason]);
+
             return;
         }
 

@@ -10,6 +10,7 @@ use CodingAgency\SpamStrike\Http\Middleware\ProtectAgainstSpam;
 use CodingAgency\SpamStrike\Mail\AbuseReport;
 use CodingAgency\SpamStrike\Support\AbuseContact;
 use CodingAgency\SpamStrike\Support\Dns;
+use CodingAgency\SpamStrike\Support\ReportGate;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
@@ -283,21 +284,7 @@ final class SendAbuseReport implements ShouldQueue
 
     private function isOwnDomain(string $domain): bool
     {
-        $own = array_filter([
-            parse_url((string) config('app.url'), PHP_URL_HOST),
-            Str::after((string) config('spam-strike.reports.from.address'), '@'),
-            ...(array) config('spam-strike.reports.own_domains'),
-        ]);
-
-        foreach ($own as $exempt) {
-            $exempt = Str::lower((string) $exempt);
-
-            if ($domain === $exempt || str_ends_with($domain, '.'.$exempt)) {
-                return true;
-            }
-        }
-
-        return false;
+        return ReportGate::isOwn($domain);
     }
 
     /**
@@ -324,13 +311,7 @@ final class SendAbuseReport implements ShouldQueue
 
     private function isExempt(string $domain): bool
     {
-        foreach ((array) config('spam-strike.reports.exempt_domains') as $exempt) {
-            if ($domain === $exempt || str_ends_with($domain, '.'.$exempt)) {
-                return true;
-            }
-        }
-
-        return false;
+        return ReportGate::isExempt($domain);
     }
 
     /**
